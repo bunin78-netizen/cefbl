@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul 2>nul
 setlocal
+cd /d "%~dp0"
 title FundingArb Bot - Frontend Dev Server
 color 0B
 
@@ -16,6 +17,16 @@ if %ERRORLEVEL% neq 0 (
     color 0C
     echo  [ERROR] Node.js is NOT installed!
     echo  Download from https://nodejs.org/
+    pause
+    exit /b 1
+)
+
+
+:: Validate project root
+if not exist "package.json" (
+    color 0C
+    echo  [ERROR] package.json not found in %CD%
+    echo  Run this script from the project folder.
     pause
     exit /b 1
 )
