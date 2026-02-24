@@ -62,28 +62,15 @@ echo  1) Backend  - http://localhost:3001
 echo  2) Frontend - http://localhost:5173
 echo.
 
-if not exist "start-backend.bat" (
-    color 0C
-    echo  [ERROR] start-backend.bat not found!
-    pause
-    exit /b 1
-)
-if not exist "start-frontend.bat" (
-    color 0C
-    echo  [ERROR] start-frontend.bat not found!
-    pause
-    exit /b 1
-)
-
 :: Start backend in new window (via dedicated script)
-start "FundingArb-Backend" "%~dp0start-backend.bat"
+start "FundingArb-Backend" cmd /k "cd /d ""%~dp0"" && call start-backend.bat"
 
 :: Wait for backend to initialize
 echo  Waiting for backend to start...
 timeout /t 3 /nobreak >nul
 
 :: Start frontend in new window (via dedicated script)
-start "FundingArb-Frontend" "%~dp0start-frontend.bat"
+start "FundingArb-Frontend" cmd /k "cd /d ""%~dp0"" && call start-frontend.bat"
 
 :: Wait and open browser
 echo  Waiting for frontend to start...
