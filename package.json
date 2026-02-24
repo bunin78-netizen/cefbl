@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "start:backend": "node backend/server.js",
     "start:frontend": "vite",
+    "start:frontend:host": "vite --host 0.0.0.0",
     "start:all": "node scripts/start-all.mjs"
   },
   "dependencies": {

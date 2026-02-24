@@ -40,8 +40,8 @@ function shutdown(exitCode = 0) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-console.log('Starting backend on http://localhost:3001 and frontend on http://localhost:5173...');
+console.log('Starting backend on http://localhost:3001 and frontend on http://localhost:5173 (host 0.0.0.0)...');
 console.log('Press Ctrl+C to stop both processes.\n');
 
 run('backend', 'npm', ['run', 'start:backend']);
-run('frontend', 'npm', ['run', 'start:frontend']);
+run('frontend', 'npm', ['run', 'start:frontend:host']);
