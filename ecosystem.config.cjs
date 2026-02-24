@@ -1,5 +1,7 @@
-// PM2 Ecosystem Config (ESM fallback)
-export default {
+// PM2 Ecosystem Config — FundingArb Bot
+// Запуск: pm2 start ecosystem.config.cjs
+
+module.exports = {
   apps: [
     {
       name: "fundingarb-backend",

@@ -241,7 +241,7 @@ fundingarb-bot/
 ├── start-pm2.bat          ← PM2 менеджер
 ├── stop-all.bat           ← Остановка
 ├── check-status.bat       ← Диагностика
-├── ecosystem.config.js    ← PM2 конфиг
+├── ecosystem.config.cjs    ← PM2 конфиг
 └── WINDOWS_SETUP.md       ← Эта инструкция
 ```
 
