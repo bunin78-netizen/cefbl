@@ -1,6 +1,8 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import cors from "cors";
 import express from "express";
+
+dotenv.config({ path: ".env.local" });
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
