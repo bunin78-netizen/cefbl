@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul 2>nul
 setlocal
+cd /d "%~dp0"
 title FundingArb Bot - Launcher
 color 0A
 
@@ -61,15 +62,28 @@ echo  1) Backend  - http://localhost:3001
 echo  2) Frontend - http://localhost:5173
 echo.
 
-:: Start backend in new window
-start "FundingArb-Backend" cmd /c "title FundingArb Backend && color 0A && echo. && echo  === BACKEND SERVER === && echo. && node backend/server.js && echo. && echo  [!] Server stopped. Press any key... && pause >nul"
+if not exist "start-backend.bat" (
+    color 0C
+    echo  [ERROR] start-backend.bat not found!
+    pause
+    exit /b 1
+)
+if not exist "start-frontend.bat" (
+    color 0C
+    echo  [ERROR] start-frontend.bat not found!
+    pause
+    exit /b 1
+)
+
+:: Start backend in new window (via dedicated script)
+start "FundingArb-Backend" "%~dp0start-backend.bat"
 
 :: Wait for backend to initialize
 echo  Waiting for backend to start...
 timeout /t 3 /nobreak >nul
 
-:: Start frontend in new window
-start "FundingArb-Frontend" cmd /c "title FundingArb Frontend && color 0B && echo. && echo  === FRONTEND DEV SERVER === && echo. && call npm run dev && echo. && echo  [!] Server stopped. Press any key... && pause >nul"
+:: Start frontend in new window (via dedicated script)
+start "FundingArb-Frontend" "%~dp0start-frontend.bat"
 
 :: Wait and open browser
 echo  Waiting for frontend to start...

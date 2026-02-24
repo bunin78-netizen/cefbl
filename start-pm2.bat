@@ -60,7 +60,9 @@ goto menu
 :pm2_start
 echo.
 echo  Starting via PM2...
-if exist "ecosystem.config.js" (
+if exist "ecosystem.config.cjs" (
+    pm2 start ecosystem.config.cjs
+) else if exist "ecosystem.config.js" (
     pm2 start ecosystem.config.js
 ) else (
     pm2 start backend/server.js --name fundingarb-backend
