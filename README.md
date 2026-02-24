@@ -16,12 +16,19 @@ npm run start:all
 
 - Backend: `http://localhost:3001`
 - Frontend (Vite): `http://localhost:5173`
+- Frontend дополнительно поднимается на `0.0.0.0`, поэтому доступен из browser container для автоскриншотов.
 - Остановка обоих процессов: `Ctrl + C`
 
 ### Раздельный запуск
 
 ```bash
 npm run start:backend
+npm run start:frontend:host
+```
+
+Если нужен только локальный режим без внешнего хоста:
+
+```bash
 npm run start:frontend
 ```
 
