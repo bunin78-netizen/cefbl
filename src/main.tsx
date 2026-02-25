@@ -60,8 +60,14 @@ type ScannerOpportunity = {
   longExchange: string;
   shortExchange: string;
   symbol: string;
+  fundingCycles?: number;
+  longFundingRate?: number;
+  shortFundingRate?: number;
   fundingDiffPercent: number;
+  longFundingPnlUsdt?: number;
+  shortFundingPnlUsdt?: number;
   grossFundingPnlUsdt: number;
+  roundTripFeesPercent?: number;
   estimatedCostsUsdt: number;
   estimatedNetPnlUsdt: number;
   holdHours: number;
@@ -341,7 +347,8 @@ function App() {
         throw new Error(errData.error || "Ошибка сканера");
       }
       const data = await response.json();
-      setScannerRows(Array.isArray(data.opportunities) ? data.opportunities : []);
+      const rows = Array.isArray(data.opportunities) ? data.opportunities : [];
+      setScannerRows(rows.filter((row) => Number(row?.estimatedNetPnlUsdt || 0) > 0));
     } catch (error) {
       setScannerRows([]);
       setScannerError(error instanceof Error ? error.message : "Ошибка сканера");
@@ -360,7 +367,8 @@ function App() {
         throw new Error(errData.error || "Ошибка сканера лучшего фандинга");
       }
       const data = await response.json();
-      setBestFundingRows(Array.isArray(data.opportunities) ? data.opportunities : []);
+      const rows = Array.isArray(data.opportunities) ? data.opportunities : [];
+      setBestFundingRows(rows.filter((row) => Number(row?.estimatedNetPnlUsdt || 0) > 0));
     } catch (error) {
       setBestFundingRows([]);
       setBestFundingError(error instanceof Error ? error.message : "Ошибка сканера лучшего фандинга");
@@ -507,19 +515,25 @@ function App() {
           </div>
 
           <div style={{ marginTop: "0.8rem", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "0.7rem" }}>
-            <div style={{ ...cardStyle, padding: "0.7rem" }}><div style={{ color: ui.muted }}>Найдено связок</div><strong>{scannerRows.length}</strong></div>
+            <div style={{ ...cardStyle, padding: "0.7rem" }}><div style={{ color: ui.muted }}>Прибыльных связок</div><strong>{scannerRows.length}</strong></div>
             <div style={{ ...cardStyle, padding: "0.7rem" }}><div style={{ color: ui.muted }}>Положительных по net PnL</div><strong>{positiveScannerRows.length}</strong></div>
           </div>
 
           <div style={{ marginTop: "0.8rem", overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}><th>Long</th><th>Short</th><th>Funding diff</th><th>Gross</th><th>Costs</th><th>Net</th></tr></thead>
+              <thead><tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net</th></tr></thead>
               <tbody>
                 {scannerRows.map((r, i) => (
-                  <tr key={`${r.longExchange}-${r.shortExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td>{r.longExchange}</td><td>{r.shortExchange}</td><td>{r.fundingDiffPercent.toFixed(4)}%</td><td>{money(r.grossFundingPnlUsdt)}</td>
+                  <tr key={`${r.longExchange}-${r.shortExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: "#f0fdf4" }}>
+                    <td>{r.longExchange}</td>
+                    <td>{r.shortExchange}</td>
+                    <td>{r.fundingDiffPercent.toFixed(4)}%</td>
+                    <td>{money(r.longFundingPnlUsdt ?? 0)}</td>
+                    <td>{money(r.shortFundingPnlUsdt ?? 0)}</td>
+                    <td>{money(r.grossFundingPnlUsdt)}</td>
+                    <td>{(r.roundTripFeesPercent ?? 0).toFixed(4)}%</td>
                     <td style={{ color: "#b91c1c" }}>-{r.estimatedCostsUsdt.toFixed(2)} USDT</td>
-                    <td style={{ color: r.estimatedNetPnlUsdt >= 0 ? "#166534" : "#b91c1c" }}>{money(r.estimatedNetPnlUsdt)}</td>
+                    <td style={{ color: "#166534", fontWeight: 700 }}>{money(r.estimatedNetPnlUsdt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -542,18 +556,21 @@ function App() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}>
-                    <th>Символ</th><th>Long</th><th>Short</th><th>Funding diff</th><th>Gross</th><th>Costs</th><th>Net PnL</th>
+                    <th>Символ</th><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net PnL</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bestFundingRows.map((r, i) => (
-                    <tr key={`best-${r.symbol}-${r.longExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: r.estimatedNetPnlUsdt >= 0 ? "#f0fdf4" : "transparent" }}>
+                    <tr key={`best-${r.symbol}-${r.longExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: "#f0fdf4" }}>
                       <td><strong>{r.symbol}</strong></td>
                       <td>{r.longExchange}</td><td>{r.shortExchange}</td>
                       <td>{r.fundingDiffPercent.toFixed(4)}%</td>
+                      <td>{money(r.longFundingPnlUsdt ?? 0)}</td>
+                      <td>{money(r.shortFundingPnlUsdt ?? 0)}</td>
                       <td>{money(r.grossFundingPnlUsdt)}</td>
+                      <td>{(r.roundTripFeesPercent ?? 0).toFixed(4)}%</td>
                       <td style={{ color: "#b91c1c" }}>-{r.estimatedCostsUsdt.toFixed(2)} USDT</td>
-                      <td style={{ color: r.estimatedNetPnlUsdt >= 0 ? "#166534" : "#b91c1c", fontWeight: "bold" }}>{money(r.estimatedNetPnlUsdt)}</td>
+                      <td style={{ color: "#166534", fontWeight: "bold" }}>{money(r.estimatedNetPnlUsdt)}</td>
                     </tr>
                   ))}
                 </tbody>

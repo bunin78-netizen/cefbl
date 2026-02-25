@@ -377,6 +377,7 @@ async function getMarketSummary(exchange, symbol) {
 
 function buildScannerOpportunities(summaries, notionalUsdt, holdHours, slippagePercent) {
   const opportunities = [];
+  const fundingCycles = holdHours / 8;
 
   for (let i = 0; i < summaries.length; i += 1) {
     for (let j = i + 1; j < summaries.length; j += 1) {
@@ -386,24 +387,46 @@ function buildScannerOpportunities(summaries, notionalUsdt, holdHours, slippageP
       const higher = a.lastFundingRate >= b.lastFundingRate ? a : b;
       const lower = a.lastFundingRate >= b.lastFundingRate ? b : a;
 
-      const fundingDiffPercent = Math.abs((higher.lastFundingRate - lower.lastFundingRate) * 100);
-      const cycles = holdHours / 8;
-      const grossFundingPnl = (notionalUsdt * fundingDiffPercent * cycles) / 100;
+      const longFundingRate = lower.lastFundingRate;
+      const shortFundingRate = higher.lastFundingRate;
+      const fundingDiffPercent = Math.abs((shortFundingRate - longFundingRate) * 100);
 
-      const feesPercent = (takerFeesPercent[higher.exchange] || 0.05) + (takerFeesPercent[lower.exchange] || 0.05);
-      const totalCostPercent = feesPercent + slippagePercent;
-      const totalCostUsdt = (notionalUsdt * totalCostPercent) / 100;
-      const netPnlUsdt = grossFundingPnl - totalCostUsdt;
+      // Точный funding PnL для нейтральной пары:
+      // long-leg funding = -notional * rate_long * cycles
+      // short-leg funding = +notional * rate_short * cycles
+      const longFundingPnlUsdt = -notionalUsdt * longFundingRate * fundingCycles;
+      const shortFundingPnlUsdt = notionalUsdt * shortFundingRate * fundingCycles;
+      const grossFundingPnlUsdt = longFundingPnlUsdt + shortFundingPnlUsdt;
+
+      // Комиссии считаются за вход и выход по обеим ногам.
+      const longTakerFeePercent = takerFeesPercent[lower.exchange] || 0.05;
+      const shortTakerFeePercent = takerFeesPercent[higher.exchange] || 0.05;
+      const roundTripFeesPercent = 2 * (longTakerFeePercent + shortTakerFeePercent);
+
+      // Slippage параметр считается как суммарный процент издержек на round-trip.
+      const totalCostPercent = roundTripFeesPercent + slippagePercent;
+      const estimatedCostsUsdt = (notionalUsdt * totalCostPercent) / 100;
+      const estimatedNetPnlUsdt = grossFundingPnlUsdt - estimatedCostsUsdt;
+
+      if (estimatedNetPnlUsdt <= 0) {
+        continue;
+      }
 
       opportunities.push({
         longExchange: lower.exchange,
         shortExchange: higher.exchange,
         symbol: higher.symbol,
-        fundingDiffPercent,
-        grossFundingPnlUsdt: grossFundingPnl,
-        estimatedCostsUsdt: totalCostUsdt,
-        estimatedNetPnlUsdt: netPnlUsdt,
         holdHours,
+        fundingCycles,
+        longFundingRate,
+        shortFundingRate,
+        fundingDiffPercent,
+        longFundingPnlUsdt,
+        shortFundingPnlUsdt,
+        grossFundingPnlUsdt,
+        roundTripFeesPercent,
+        estimatedCostsUsdt,
+        estimatedNetPnlUsdt,
       });
     }
   }
