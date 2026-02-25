@@ -193,6 +193,11 @@ function App() {
   const [bestFundingError, setBestFundingError] = useState("");
   const [bestFundingRows, setBestFundingRows] = useState<ScannerOpportunity[]>([]);
 
+  const [executeModal, setExecuteModal] = useState<ScannerOpportunity | null>(null);
+  const [executeQty, setExecuteQty] = useState("0.001");
+  const [executingTrade, setExecutingTrade] = useState(false);
+  const [executeResult, setExecuteResult] = useState<string>("");
+
   const [strategyMode, setStrategyMode] = useState<"Conservative" | "Balanced" | "Aggressive">("Balanced");
   const [strategy, setStrategy] = useState<StrategySettings>({
     minFundingDiffPercent: 0.03,
@@ -377,6 +382,46 @@ function App() {
     }
   };
 
+  const openExecuteModal = (row: ScannerOpportunity) => {
+    setExecuteModal(row);
+    setExecuteResult("");
+  };
+
+  const executeOpportunity = async () => {
+    if (!executeModal) return;
+    setExecutingTrade(true);
+    setExecuteResult("");
+    try {
+      const qty = Number(executeQty);
+      const [longRes, shortRes] = await Promise.allSettled([
+        fetch("http://localhost:3001/api/trade/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ exchange: executeModal.longExchange, symbol: executeModal.symbol, side: "BUY", type: "MARKET", quantity: qty }),
+        }).then((r) => r.json()),
+        fetch("http://localhost:3001/api/trade/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ exchange: executeModal.shortExchange, symbol: executeModal.symbol, side: "SELL", type: "MARKET", quantity: qty }),
+        }).then((r) => r.json()),
+      ]);
+      const longOk = longRes.status === "fulfilled" && !longRes.value?.error;
+      const shortOk = shortRes.status === "fulfilled" && !shortRes.value?.error;
+      if (longOk && shortOk) {
+        setExecuteResult(`✅ Long на ${executeModal.longExchange} и Short на ${executeModal.shortExchange} — исполнены`);
+      } else {
+        const errors: string[] = [];
+        if (!longOk) errors.push(`Long (${executeModal.longExchange}): ${longRes.status === "fulfilled" ? (longRes.value?.error ?? "ошибка") : "ошибка"}`);
+        if (!shortOk) errors.push(`Short (${executeModal.shortExchange}): ${shortRes.status === "fulfilled" ? (shortRes.value?.error ?? "ошибка") : "ошибка"}`);
+        setExecuteResult(`⚠️ ${errors.join("; ")}`);
+      }
+    } catch (error) {
+      setExecuteResult(error instanceof Error ? `Ошибка: ${error.message}` : "Ошибка исполнения");
+    } finally {
+      setExecutingTrade(false);
+    }
+  };
+
   const fetchPositions = async () => {
     setPositionsLoading(true);
     setPositionsError("");
@@ -521,7 +566,7 @@ function App() {
 
           <div style={{ marginTop: "0.8rem", overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net</th></tr></thead>
+              <thead><tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net</th><th></th></tr></thead>
               <tbody>
                 {scannerRows.map((r, i) => (
                   <tr key={`${r.longExchange}-${r.shortExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: "#f0fdf4" }}>
@@ -534,6 +579,7 @@ function App() {
                     <td>{(r.roundTripFeesPercent ?? 0).toFixed(4)}%</td>
                     <td style={{ color: "#b91c1c" }}>-{r.estimatedCostsUsdt.toFixed(2)} USDT</td>
                     <td style={{ color: "#166534", fontWeight: 700 }}>{money(r.estimatedNetPnlUsdt)}</td>
+                    <td><button onClick={() => openExecuteModal(r)} style={{ background: ui.primary, color: "#fff", border: "none", borderRadius: "7px", padding: "0.3rem 0.65rem", cursor: "pointer", whiteSpace: "nowrap" }}>Исполнить</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -556,7 +602,7 @@ function App() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}>
-                    <th>Символ</th><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net PnL</th>
+                    <th>Символ</th><th>Long</th><th>Short</th><th>Funding diff</th><th>Funding long</th><th>Funding short</th><th>Gross funding</th><th>Fees % RT</th><th>Costs</th><th>Net PnL</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -571,6 +617,7 @@ function App() {
                       <td>{(r.roundTripFeesPercent ?? 0).toFixed(4)}%</td>
                       <td style={{ color: "#b91c1c" }}>-{r.estimatedCostsUsdt.toFixed(2)} USDT</td>
                       <td style={{ color: "#166534", fontWeight: "bold" }}>{money(r.estimatedNetPnlUsdt)}</td>
+                      <td><button onClick={() => openExecuteModal(r)} style={{ background: ui.primary, color: "#fff", border: "none", borderRadius: "7px", padding: "0.3rem 0.65rem", cursor: "pointer", whiteSpace: "nowrap" }}>Исполнить</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -634,6 +681,59 @@ function App() {
             </div>
           </article>
         </section>
+      )}
+      {executeModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Исполнить сделку"
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setExecuteModal(null); setExecuteResult(""); } }}
+        >
+          <div style={{ ...cardStyle, width: "min(96vw,420px)", maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ marginTop: 0 }}>Исполнить сделку</h3>
+            <p style={{ marginTop: 0, color: ui.muted }}>
+              <strong>{executeModal.symbol}</strong> · Long на <strong>{executeModal.longExchange}</strong> · Short на <strong>{executeModal.shortExchange}</strong>
+            </p>
+            <div style={{ display: "grid", gap: "0.3rem", marginBottom: "0.9rem", fontSize: "0.88rem", color: ui.muted }}>
+              <span>Funding diff: <strong>{executeModal.fundingDiffPercent.toFixed(4)}%</strong></span>
+              <span>Est. net PnL: <strong style={{ color: "#166534" }}>{money(executeModal.estimatedNetPnlUsdt)}</strong></span>
+            </div>
+            <label>
+              Количество контрактов
+              <Tooltip text="Количество контрактов для каждой ноги (long и short). Например 0.001 BTC" />
+              <input
+                type="number"
+                step="0.001"
+                value={executeQty}
+                onChange={(e) => setExecuteQty(e.target.value)}
+                style={inputStyle}
+                disabled={executingTrade}
+              />
+            </label>
+            <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.9rem" }}>
+              <button
+                onClick={executeOpportunity}
+                disabled={executingTrade}
+                style={{ flex: 1, background: ui.primary, color: "#fff", border: "none", borderRadius: "9px", padding: "0.55rem 1rem", cursor: executingTrade ? "not-allowed" : "pointer", fontWeight: 600 }}
+              >
+                {executingTrade ? "Исполняем..." : "Подтвердить и исполнить"}
+              </button>
+              <button
+                onClick={() => { setExecuteModal(null); setExecuteResult(""); }}
+                disabled={executingTrade}
+                style={{ padding: "0.55rem 0.9rem", borderRadius: "9px", border: `1px solid ${ui.border}`, cursor: "pointer" }}
+              >
+                Отмена
+              </button>
+            </div>
+            {executeResult && (
+              <p style={{ marginTop: "0.7rem", fontWeight: 500, color: executeResult.startsWith("✅") ? "#166534" : "#b91c1c" }}>
+                {executeResult}
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </main>
   );
