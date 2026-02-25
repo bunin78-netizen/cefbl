@@ -336,8 +336,11 @@ function App() {
     setScannerError("");
     try {
       const response = await fetch(`http://localhost:3001/api/scanner/opportunities?symbol=${encodeURIComponent(symbol)}&notionalUsdt=${scannerNotional}&holdHours=${scannerHoldHours}&slippagePercent=${scannerSlippage}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(errData.error || "Ошибка сканера");
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Ошибка сканера");
       setScannerRows(Array.isArray(data.opportunities) ? data.opportunities : []);
     } catch (error) {
       setScannerRows([]);
@@ -352,8 +355,11 @@ function App() {
     setBestFundingError("");
     try {
       const response = await fetch(`http://localhost:3001/api/scanner/best-funding?notionalUsdt=${scannerNotional}&holdHours=${scannerHoldHours}&slippagePercent=${scannerSlippage}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(errData.error || "Ошибка сканера лучшего фандинга");
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Ошибка сканера лучшего фандинга");
       setBestFundingRows(Array.isArray(data.opportunities) ? data.opportunities : []);
     } catch (error) {
       setBestFundingRows([]);
