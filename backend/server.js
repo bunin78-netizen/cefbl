@@ -25,6 +25,11 @@ const takerFeesPercent = {
   okx: 0.05,
 };
 
+const TOP_SYMBOLS = [
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
+  "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
+];
+
 const DEFAULT_SCANNER_PARAMS = {
   symbol: process.env.SCANNER_DEFAULT_SYMBOL || "BTCUSDT",
   notionalUsdt: Number(process.env.SCANNER_DEFAULT_NOTIONAL_USDT || 1000),
@@ -546,6 +551,38 @@ app.post("/api/trade/order", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+app.get("/api/scanner/best-funding", async (req, res) => {
+  const notionalUsdt = Number(req.query.notionalUsdt || DEFAULT_SCANNER_PARAMS.notionalUsdt);
+  const holdHours = Number(req.query.holdHours || DEFAULT_SCANNER_PARAMS.holdHours);
+  const slippagePercent = Number(req.query.slippagePercent || DEFAULT_SCANNER_PARAMS.slippagePercent);
+  const topN = Math.min(Number(req.query.topN || 10), 30);
+
+  const enabledExchanges = exchangeRegistry.filter((item) => ["binance", "bybit", "bitget", "okx"].includes(item.id));
+
+  const symbolResults = await Promise.allSettled(
+    TOP_SYMBOLS.map(async (symbol) => {
+      const settled = await Promise.allSettled(enabledExchanges.map((item) => getMarketSummary(item.id, symbol)));
+      const summaries = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
+      if (summaries.length < 2) return [];
+      return buildScannerOpportunities(summaries, notionalUsdt, holdHours, slippagePercent);
+    }),
+  );
+
+  const allOpportunities = symbolResults
+    .filter((r) => r.status === "fulfilled")
+    .flatMap((r) => r.value);
+
+  allOpportunities.sort((a, b) => b.estimatedNetPnlUsdt - a.estimatedNetPnlUsdt);
+
+  return res.json({
+    scannedSymbols: TOP_SYMBOLS.length,
+    notionalUsdt,
+    holdHours,
+    slippagePercent,
+    opportunities: allOpportunities.slice(0, topN),
+  });
 });
 
 app.listen(port, () => {

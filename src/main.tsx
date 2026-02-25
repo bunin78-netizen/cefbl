@@ -109,6 +109,44 @@ function money(value: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)} USDT`;
 }
 
+function Tooltip({ text }: { text: string }) {
+  const [visible, setVisible] = React.useState(false);
+  const id = React.useId();
+  return (
+    <span
+      style={{ position: "relative", display: "inline-block", marginLeft: "4px", verticalAlign: "middle" }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      onFocus={() => setVisible(true)}
+      onBlur={() => setVisible(false)}
+      tabIndex={0}
+      aria-describedby={visible ? id : undefined}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 15, height: 15, borderRadius: "50%", background: "#94a3b8",
+          color: "#fff", fontSize: "0.6rem", fontWeight: "bold", cursor: "help",
+        }}
+      >?</span>
+      {visible && (
+        <span
+          id={id}
+          role="tooltip"
+          style={{
+            position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+            transform: "translateX(-50%)", background: "#1e293b", color: "#f8fafc",
+            padding: "6px 10px", borderRadius: 8, fontSize: "0.72rem", lineHeight: 1.45,
+            width: "max-content", maxWidth: 240, zIndex: 9999, pointerEvents: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          }}
+        >{text}</span>
+      )}
+    </span>
+  );
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -144,6 +182,10 @@ function App() {
   const [scannerLoading, setScannerLoading] = useState(false);
   const [scannerError, setScannerError] = useState("");
   const [scannerRows, setScannerRows] = useState<ScannerOpportunity[]>([]);
+
+  const [bestFundingLoading, setBestFundingLoading] = useState(false);
+  const [bestFundingError, setBestFundingError] = useState("");
+  const [bestFundingRows, setBestFundingRows] = useState<ScannerOpportunity[]>([]);
 
   const [strategyMode, setStrategyMode] = useState<"Conservative" | "Balanced" | "Aggressive">("Balanced");
   const [strategy, setStrategy] = useState<StrategySettings>({
@@ -305,6 +347,22 @@ function App() {
     }
   };
 
+  const scanBestFunding = async () => {
+    setBestFundingLoading(true);
+    setBestFundingError("");
+    try {
+      const response = await fetch(`http://localhost:3001/api/scanner/best-funding?notionalUsdt=${scannerNotional}&holdHours=${scannerHoldHours}&slippagePercent=${scannerSlippage}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Ошибка сканера лучшего фандинга");
+      setBestFundingRows(Array.isArray(data.opportunities) ? data.opportunities : []);
+    } catch (error) {
+      setBestFundingRows([]);
+      setBestFundingError(error instanceof Error ? error.message : "Ошибка сканера лучшего фандинга");
+    } finally {
+      setBestFundingLoading(false);
+    }
+  };
+
   const fetchPositions = async () => {
     setPositionsLoading(true);
     setPositionsError("");
@@ -393,8 +451,8 @@ function App() {
 
             <article style={cardStyle}>
               <h3 style={{ marginTop: 0 }}>Рынок</h3>
-              <label>Биржа<select value={selectedExchange} onChange={(e) => setSelectedExchange(e.target.value)} style={inputStyle}>{exchanges.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-              <label style={{ display: "block", marginTop: "0.5rem" }}>Пара<input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} style={inputStyle} /></label>
+              <label>Биржа<Tooltip text="Выберите биржу для получения live-данных о рынке" /><select value={selectedExchange} onChange={(e) => setSelectedExchange(e.target.value)} style={inputStyle}>{exchanges.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label style={{ display: "block", marginTop: "0.5rem" }}>Пара<Tooltip text="Торговая пара, например BTCUSDT" /><input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} style={inputStyle} /></label>
               <button onClick={fetchMarket} disabled={marketLoading} style={{ marginTop: "0.6rem" }}>{marketLoading ? "Загрузка..." : "Обновить рынок"}</button>
               {market && <p style={{ marginTop: "0.6rem" }}>Mark {market.markPrice} · Funding {(market.lastFundingRate * 100).toFixed(4)}%</p>}
               {marketError && <p style={{ color: "#b91c1c" }}>{marketError}</p>}
@@ -402,10 +460,10 @@ function App() {
 
             <article style={cardStyle}>
               <h3 style={{ marginTop: 0 }}>Быстрый ордер</h3>
-              <label>Биржа ордера<select value={orderExchange} onChange={(e) => setOrderExchange(e.target.value)} style={inputStyle}>{exchanges.filter((x) => x.supportsTrading).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Биржа ордера<Tooltip text="На какой бирже разместить рыночный ордер" /><select value={orderExchange} onChange={(e) => setOrderExchange(e.target.value)} style={inputStyle}>{exchanges.filter((x) => x.supportsTrading).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
-                <label>Side<select value={orderSide} onChange={(e) => setOrderSide(e.target.value as "BUY" | "SELL")} style={inputStyle}><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>
-                <label>Qty<input value={orderQuantity} onChange={(e) => setOrderQuantity(e.target.value)} style={inputStyle} /></label>
+                <label>Side<Tooltip text="BUY — открыть Long / закрыть Short. SELL — открыть Short / закрыть Long" /><select value={orderSide} onChange={(e) => setOrderSide(e.target.value as "BUY" | "SELL")} style={inputStyle}><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>
+                <label>Qty<Tooltip text="Количество контрактов (не в USDT). Например 0.001 BTC" /><input value={orderQuantity} onChange={(e) => setOrderQuantity(e.target.value)} style={inputStyle} /></label>
               </div>
               <button onClick={placeOrder} disabled={placingOrder} style={{ marginTop: "0.7rem" }}>{placingOrder ? "Отправка..." : "Отправить MARKET"}</button>
               {orderResult && <p style={{ marginTop: "0.6rem" }}>{orderResult}</p>}
@@ -430,14 +488,15 @@ function App() {
       )}
 
       {tab === "scanner" && (
+        <>
         <section style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Сканер арбитражных возможностей</h3>
           {apiConfig?.defaults?.scanner && <p style={{ color: ui.muted }}>Defaults: {apiConfig.defaults.scanner.symbol} · {apiConfig.defaults.scanner.notionalUsdt} USDT · {apiConfig.defaults.scanner.holdHours}h · {apiConfig.defaults.scanner.slippagePercent}% slippage</p>}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "0.6rem", alignItems: "end" }}>
-            <label>Symbol<input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} style={inputStyle} /></label>
-            <label>Notional USDT<input type="number" value={scannerNotional} onChange={(e) => setScannerNotional(Number(e.target.value))} style={inputStyle} /></label>
-            <label>Hold hours<input type="number" value={scannerHoldHours} onChange={(e) => setScannerHoldHours(Number(e.target.value))} style={inputStyle} /></label>
-            <label>Slippage %<input type="number" step={0.01} value={scannerSlippage} onChange={(e) => setScannerSlippage(Number(e.target.value))} style={inputStyle} /></label>
+            <label>Symbol<Tooltip text="Торговая пара для сравнения funding rate на разных биржах (например BTCUSDT)" /><input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} style={inputStyle} /></label>
+            <label>Notional USDT<Tooltip text="Размер позиции в USDT — используется для расчёта ожидаемой прибыли и издержек" /><input type="number" value={scannerNotional} onChange={(e) => setScannerNotional(Number(e.target.value))} style={inputStyle} /></label>
+            <label>Hold hours<Tooltip text="Сколько часов держать позицию. Funding начисляется каждые 8 часов, поэтому 8h = 1 цикл" /><input type="number" value={scannerHoldHours} onChange={(e) => setScannerHoldHours(Number(e.target.value))} style={inputStyle} /></label>
+            <label>Slippage %<Tooltip text="Ожидаемое проскальзывание при входе и выходе из позиции (оба плеча вместе)" /><input type="number" step={0.01} value={scannerSlippage} onChange={(e) => setScannerSlippage(Number(e.target.value))} style={inputStyle} /></label>
             <button onClick={scanOpportunities} disabled={scannerLoading}>{scannerLoading ? "Сканируем..." : "Сканировать"}</button>
           </div>
 
@@ -462,6 +521,42 @@ function App() {
           </div>
           {scannerError && <p style={{ color: "#b91c1c" }}>{scannerError}</p>}
         </section>
+
+        <section style={{ ...cardStyle, marginTop: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>🔍 Поиск лучшего фандинга</h3>
+          <p style={{ color: ui.muted, marginTop: 0 }}>
+            Автоматически сканирует топ-10 символов (включая BTC, ETH, SOL, BNB, XRP и др.) по всем биржам и находит наиболее выгодные арбитражные возможности.
+            Параметры (Notional, Hold hours, Slippage) берутся из полей выше.
+          </p>
+          <button onClick={scanBestFunding} disabled={bestFundingLoading} style={{ background: ui.primary, color: "#fff", border: "none", borderRadius: "9px", padding: "0.5rem 1rem", cursor: bestFundingLoading ? "not-allowed" : "pointer" }}>
+            {bestFundingLoading ? "Сканируем все символы..." : "Найти лучший фандинг"}
+          </button>
+          {bestFundingRows.length > 0 && (
+            <div style={{ marginTop: "0.8rem", overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${ui.border}`, textAlign: "left" }}>
+                    <th>Символ</th><th>Long</th><th>Short</th><th>Funding diff</th><th>Gross</th><th>Costs</th><th>Net PnL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bestFundingRows.map((r, i) => (
+                    <tr key={`best-${r.symbol}-${r.longExchange}-${i}`} style={{ borderBottom: "1px solid #f1f5f9", background: r.estimatedNetPnlUsdt >= 0 ? "#f0fdf4" : "transparent" }}>
+                      <td><strong>{r.symbol}</strong></td>
+                      <td>{r.longExchange}</td><td>{r.shortExchange}</td>
+                      <td>{r.fundingDiffPercent.toFixed(4)}%</td>
+                      <td>{money(r.grossFundingPnlUsdt)}</td>
+                      <td style={{ color: "#b91c1c" }}>-{r.estimatedCostsUsdt.toFixed(2)} USDT</td>
+                      <td style={{ color: r.estimatedNetPnlUsdt >= 0 ? "#166534" : "#b91c1c", fontWeight: "bold" }}>{money(r.estimatedNetPnlUsdt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {bestFundingError && <p style={{ color: "#b91c1c" }}>{bestFundingError}</p>}
+        </section>
+        </>
       )}
 
       {tab === "settings" && (
@@ -474,14 +569,14 @@ function App() {
               <button onClick={() => applyPreset("Aggressive")} style={{ border: strategyMode === "Aggressive" ? `2px solid ${ui.primary}` : `1px solid ${ui.border}`, borderRadius: "8px" }}>Агрессивный</button>
             </div>
 
-            <label>Min funding diff %<input type="number" step={0.001} value={strategy.minFundingDiffPercent} onChange={(e) => setStrategy((p) => ({ ...p, minFundingDiffPercent: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label>Min spread %<input type="number" step={0.001} value={strategy.minSpreadPercent} onChange={(e) => setStrategy((p) => ({ ...p, minSpreadPercent: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label>Max slippage %<input type="number" step={0.001} value={strategy.maxEntrySlippagePercent} onChange={(e) => setStrategy((p) => ({ ...p, maxEntrySlippagePercent: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label>Min net-edge %<input type="number" step={0.001} value={strategy.minNetEdgePercent} onChange={(e) => setStrategy((p) => ({ ...p, minNetEdgePercent: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label>Max hold h<input type="number" step={1} value={strategy.maxHoldHours} onChange={(e) => setStrategy((p) => ({ ...p, maxHoldHours: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label>Rebalance %<input type="number" step={0.01} value={strategy.rebalanceThresholdPercent} onChange={(e) => setStrategy((p) => ({ ...p, rebalanceThresholdPercent: Number(e.target.value) }))} style={inputStyle} /></label>
-            <label style={{ display: "flex", gap: "0.45rem", marginTop: "0.6rem" }}><input type="checkbox" checked={strategy.autoHedge} onChange={(e) => setStrategy((p) => ({ ...p, autoHedge: e.target.checked }))} /> Auto-hedge</label>
-            <label style={{ display: "flex", gap: "0.45rem" }}><input type="checkbox" checked={strategy.onlyTopLiquidity} onChange={(e) => setStrategy((p) => ({ ...p, onlyTopLiquidity: e.target.checked }))} /> Только топ-ликвидность</label>
+            <label>Min funding diff %<Tooltip text="Минимальная разница funding rate между биржами для открытия арбитражной позиции" /><input type="number" step={0.001} value={strategy.minFundingDiffPercent} onChange={(e) => setStrategy((p) => ({ ...p, minFundingDiffPercent: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label>Min spread %<Tooltip text="Минимальный спред между mark price и index price — дополнительный источник прибыли" /><input type="number" step={0.001} value={strategy.minSpreadPercent} onChange={(e) => setStrategy((p) => ({ ...p, minSpreadPercent: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label>Max slippage %<Tooltip text="Максимально допустимое проскальзывание при входе в позицию" /><input type="number" step={0.001} value={strategy.maxEntrySlippagePercent} onChange={(e) => setStrategy((p) => ({ ...p, maxEntrySlippagePercent: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label>Min net-edge %<Tooltip text="Минимальная чистая прибыль после вычета комиссий и проскальзывания. Позиция не открывается ниже этого порога" /><input type="number" step={0.001} value={strategy.minNetEdgePercent} onChange={(e) => setStrategy((p) => ({ ...p, minNetEdgePercent: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label>Max hold h<Tooltip text="Максимальное время удержания позиции (в часах). 8h = 1 цикл начисления фандинга" /><input type="number" step={1} value={strategy.maxHoldHours} onChange={(e) => setStrategy((p) => ({ ...p, maxHoldHours: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label>Rebalance %<Tooltip text="Порог отклонения позиции (%), при котором срабатывает автоматическая ребалансировка" /><input type="number" step={0.01} value={strategy.rebalanceThresholdPercent} onChange={(e) => setStrategy((p) => ({ ...p, rebalanceThresholdPercent: Number(e.target.value) }))} style={inputStyle} /></label>
+            <label style={{ display: "flex", gap: "0.45rem", marginTop: "0.6rem" }}><input type="checkbox" checked={strategy.autoHedge} onChange={(e) => setStrategy((p) => ({ ...p, autoHedge: e.target.checked }))} /> Auto-hedge<Tooltip text="Автоматически открывает противоположную позицию на другой бирже для полного нейтрального хеджирования" /></label>
+            <label style={{ display: "flex", gap: "0.45rem" }}><input type="checkbox" checked={strategy.onlyTopLiquidity} onChange={(e) => setStrategy((p) => ({ ...p, onlyTopLiquidity: e.target.checked }))} /> Только топ-ликвидность<Tooltip text="Использовать только торговые пары с высоким объёмом торгов для минимизации проскальзывания" /></label>
           </article>
 
           <article style={cardStyle}>
